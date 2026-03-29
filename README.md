@@ -1,3 +1,4 @@
+
 # ClearSpeech
 
 Streamlit app that helps you rewrite short messages in **English**, **German**, or **French**, then confirm the wording with **Yes** / **No**. If you choose **No**, you answer one clarification and get a new proposal. **Yes** shows the final text in a copy-friendly block.
