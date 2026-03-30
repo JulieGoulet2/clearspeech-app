@@ -71,7 +71,7 @@ def main() -> None:
     t = ui_strings(lang)
 
     st.title(t["page_title"])
-    st.caption(t["caption"])
+    st.caption("Version 2.0")
 
     # Short hints + examples (content language matches app language).
     instructions = {
