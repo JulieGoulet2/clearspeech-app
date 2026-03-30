@@ -13,8 +13,9 @@ Run: streamlit run app.py
 from __future__ import annotations
 
 import streamlit as st
-
+import streamlit.components.v1 as components
 import logic
+
 from prompts import ui as ui_strings
 
 # --- Flow phases (stored in st.session_state["phase"]) ---
@@ -71,7 +72,7 @@ def main() -> None:
     t = ui_strings(lang)
 
     st.title(t["page_title"])
-    st.caption("Version 2.0")
+    st.caption("Version 2.1")
 
     # Short hints + examples (content language matches app language).
     instructions = {
@@ -188,20 +189,45 @@ def main() -> None:
 
     elif st.session_state.phase == PHASE_FINAL:
         st.success(t["final_copy"])
-        st.code(st.session_state.proposed, language=None)
-        st.download_button(
-            label="📋 Download text",
-            data=st.session_state.proposed,
-            file_name="clearspeech_text.txt",
-            mime="text/plain",
-        )
-        if st.button(t["new_message"]):
-            reset_all()
-            st.rerun()
 
-    else:
-        st.error(t["unknown_step"])
-        if st.button(t["reset"]):
+        st.markdown("**Final text:**")
+        st.text_area(
+            label="",
+            value=st.session_state.proposed,
+            height=120,
+            key="final_text_area",
+        )
+
+        safe_text = (
+            st.session_state.proposed
+            .replace("\\", "\\\\")
+            .replace("`", "\\`")
+            .replace("$", "\\$")
+        )
+
+        components.html(
+            f"""
+        <button
+            onclick="navigator.clipboard.writeText(`{safe_text}`)"
+            style="
+                background-color:#4CAF50;
+                color:white;
+                border:none;
+                padding:10px 16px;
+                border-radius:8px;
+                font-size:16px;
+                cursor:pointer;
+                margin-top:8px;
+                margin-bottom:8px;
+            "
+        >
+            📋 Copy text
+        </button>
+        """,
+            height=60,
+        )
+
+        if st.button(t["new_message"], use_container_width=True):
             reset_all()
             st.rerun()
 
