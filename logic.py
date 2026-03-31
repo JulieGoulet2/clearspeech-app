@@ -9,11 +9,9 @@ return two lines for proposals: rewrite, then confirmation question.
 from __future__ import annotations
 
 import os
-
 from dotenv import load_dotenv
 from openai import OpenAI
 
-# Load variables from `.env` in the project root when present.
 load_dotenv()
 
 _client: OpenAI | None = None
@@ -27,7 +25,6 @@ def get_client() -> OpenAI:
     return _client
 
 
-# Instructions sent with every API call: role, tone, language rules, and output shape.
 SYSTEM_PROMPT = """
 You are an AI communication assistant for people with communication difficulties.
 
@@ -157,11 +154,13 @@ def _call_model(user_input: str) -> str:
 
 
 def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
-    """
-    First turn: model returns line 1 = rewrite, line 2 = confirmation question.
-    `lang` is the app UI language; fallback lines use fixed helper questions.
-    """
-    raw = _call_model(text)
+    raw = _call_model(
+        f"""Language hint: {lang}
+
+User input:
+{text}
+"""
+    )
 
     if raw.startswith("ERROR:"):
         return raw, clarification_question_for_user(lang)
@@ -170,7 +169,6 @@ def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
     if len(lines) >= 2:
         return lines[0], lines[1]
     if len(lines) == 1:
-        # If only one line comes back, assume it is the proposal and use fixed confirmation.
         return lines[0], confirmation_question_for_user(lang)
     return "", confirmation_question_for_user(lang)
 
@@ -178,17 +176,24 @@ def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
 def propose_rewrite_after_clarification(
     original_text: str, clarification: str, lang: str
 ) -> tuple[str, str]:
-    """Second turn after the user answered the in-app clarification prompt."""
-    prompt = f"""Original message:
+    prompt = f"""Language: {lang}
+
+Original message:
 {original_text}
 
 User clarification:
 {clarification}
 
+Important:
+- Reply ONLY in this language: {lang}
+- Do NOT switch language
+- Use the exact confirmation sentence for this language
+
 Now provide:
-1. a clearer rewritten version
-2. the exact confirmation sentence in the same language
+1. a clearer rewritten sentence
+2. the exact confirmation sentence
 """
+
     raw = _call_model(prompt)
 
     if raw.startswith("ERROR:"):
@@ -201,9 +206,66 @@ Now provide:
         return lines[0], confirmation_question_for_user(lang)
     return "", confirmation_question_for_user(lang)
 
+def propose_three_options(text: str, lang: str) -> list[str]:
+    """
+    Return 3 DISTINCT possible interpretations.
+    The output language should follow the dominant language of the user input.
+    The UI language is only a fallback hint.
+    """
+    prompt = f"""Language hint: {lang}
+
+User input:
+{text}
+
+Language rules:
+- Detect the language from the FULL user input, not only the first word.
+- If the input is mainly in English, reply in English.
+- If the input is mainly in French, reply in French.
+- If the input is mainly in German, reply in German.
+- If the input is mixed, choose the dominant language of the input.
+- Use the language hint only as a fallback if the input language is unclear.
+- Do NOT switch language.
+
+Task:
+Produce exactly 3 DISTINCT possible interpretations of the user's intended meaning.
+
+Rules:
+- Each option must be a short, clear sentence.
+- Options must represent different meanings, not small paraphrases.
+- Do not add numbering words like "Option 1".
+- Do not add explanations.
+- Output exactly 3 lines, one option per line.
+- If fewer than 3 interpretations are plausible, still provide the best 3 distinct reasonable possibilities.
+"""
+
+    raw = _call_model(prompt)
+
+    if raw.startswith("ERROR:"):
+        return [raw]
+
+    lines = [line.strip("-• 1234567890. \t") for line in raw.splitlines() if line.strip()]
+    unique_lines: list[str] = []
+    for line in lines:
+        if line not in unique_lines:
+            unique_lines.append(line)
+
+    return unique_lines[:3]
+
+    raw = _call_model(prompt)
+
+    if raw.startswith("ERROR:"):
+        return [raw]
+
+    lines = [line.strip("-• 1234567890. \t") for line in raw.splitlines() if line.strip()]
+    unique_lines: list[str] = []
+    for line in lines:
+        if line not in unique_lines:
+            unique_lines.append(line)
+
+    return unique_lines[:3]
+
 
 def clarification_question_for_user(lang: str) -> str:
-    """Shown in the UI when the user clicks No (before they type a clarification)."""
     questions = {
         "en": "What do you mean exactly?",
         "de": "Was meinst du genau?",
@@ -213,7 +275,6 @@ def clarification_question_for_user(lang: str) -> str:
 
 
 def confirmation_question_for_user(lang: str) -> str:
-    """Fixed fallback confirmation question if the model returns only one line."""
     questions = {
         "en": "Is this what you mean?",
         "de": "Ist das, was du meinst?",
@@ -223,7 +284,6 @@ def confirmation_question_for_user(lang: str) -> str:
 
 
 def language_name(code: str) -> str:
-    """Display names for the language dropdown in the Streamlit UI."""
     names = {
         "en": "English",
         "de": "Deutsch",
