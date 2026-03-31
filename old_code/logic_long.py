@@ -16,16 +16,7 @@ from openai import OpenAI
 # Load variables from `.env` in the project root when present.
 load_dotenv()
 
-_client: OpenAI | None = None
-
-
-def get_client() -> OpenAI:
-    """Create the OpenAI client once and reuse it."""
-    global _client
-    if _client is None:
-        _client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    return _client
-
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # Instructions sent with every API call: role, tone, language rules, and output shape.
 SYSTEM_PROMPT = """
@@ -51,6 +42,13 @@ Language detection priority:
 Consistency rule:
 - Always use the SAME confirmation sentence in each language.
 - Do not vary wording.
+Confirmation sentences:
+- English: "Is this what you mean?"
+- German: "Ist das, was du meinst?"
+- French: "Est-ce que c’est ce que tu veux dire?"
+
+- ALWAYS use these exact sentences.
+- Do NOT rephrase or simplify them.
 
 Interaction:
 1. First, propose a clear and simple rewritten version of the user’s text.
@@ -66,6 +64,11 @@ Rules:
 - Keep interaction low effort.
 - Ask only one question at a time.
 - Accept incomplete or imperfect input.
+
+Ambiguity enforcement:
+- If there is ANY ambiguity (time, meaning, subject), you MUST ask a clarification question.
+- Do NOT guess.
+- Never provide a final interpretation if multiple meanings are possible.
 
 Time handling:
 - Pay special attention to time indicators such as "yesterday", "tomorrow", "later", "next week", "morgen", "demain", "hier", "aujourd’hui".
@@ -85,6 +88,11 @@ Ambiguity enforcement:
 - Do NOT guess.
 - Never provide a final interpretation if multiple meanings are possible.
 
+Mixed language handling:
+- If the sentence mixes languages, detect the dominant language.
+- Rewrite fully in ONE language only.
+- Do not keep mixed language in output.
+
 Figurative language and false friends:
 - Be careful with idioms, figurative expressions, false friends, and direct translations from another language.
 - If the text could have a literal meaning or an idiomatic meaning, do not automatically choose the literal meaning.
@@ -99,20 +107,12 @@ Cross-lingual interference:
 - When a phrase sounds unnatural but resembles a common idiom in another supported language, consider that possibility.
 - If unsure, ask for clarification instead of rewriting it literally.
 
-Mixed language handling:
-- If the sentence mixes languages, detect the dominant language.
-- Rewrite fully in ONE language only.
-- Do not keep mixed language in output.
-
 Missing context rule:
-- If a sentence is incomplete (e.g. "doctor", "problem"), try to infer the most common real-world meaning.
-- Prefer realistic everyday interpretations:
+- If a sentence is incomplete (e.g. "doctor"), infer the most common real-world meaning.
+- Prefer realistic interpretations:
   - "doctor" → medical appointment
   - "problem" → personal or practical issue
-- However:
-  - If the meaning is clear and common, you may propose a rewritten sentence.
-  - If there is more than one reasonable interpretation, you MUST ask a clarification question instead of guessing.
-- Never invent specific details that were not implied by the user.
+- But if multiple interpretations exist → ask clarification.
 
 Quality rule:
 - Make your best possible interpretation in the first proposal.
@@ -121,15 +121,6 @@ Quality rule:
 
 Very unclear input:
 - If the meaning is too unclear to make a reasonable guess, ask a clarification question instead of proposing a rewrite.
-- If you are not confident (>70%) about the meaning, you MUST ask a clarification question FIRST.
-- Do NOT propose a sentence in that case.
-
-Confirmation sentences:
-- English: "Is this what you mean?"
-- German: "Ist das, was du meinst?"
-- French: "Est-ce que c’est ce que tu veux dire?"
-- ALWAYS use these exact sentences.
-- Do NOT rephrase or simplify them.
 
 Output format:
 - First line: the proposed rewritten sentence.
@@ -145,11 +136,11 @@ After confirmation:
 def _call_model(user_input: str) -> str:
     """Send one user string to the model; return raw text or an error prefix."""
     try:
-        response = get_client().responses.create(
+        response = client.responses.create(
             model="gpt-4.1-mini",
             instructions=SYSTEM_PROMPT,
             input=user_input,
-            temperature=0.1,
+            temperature=0.2,
         )
         return response.output_text.strip()
     except Exception as e:
@@ -159,7 +150,7 @@ def _call_model(user_input: str) -> str:
 def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
     """
     First turn: model returns line 1 = rewrite, line 2 = confirmation question.
-    `lang` is the app UI language; fallback lines use fixed helper questions.
+    `lang` is the app UI language; fallback lines use clarification_question_for_user.
     """
     raw = _call_model(text)
 
@@ -170,7 +161,6 @@ def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
     if len(lines) >= 2:
         return lines[0], lines[1]
     if len(lines) == 1:
-        # If only one line comes back, assume it is the proposal and use fixed confirmation.
         return lines[0], confirmation_question_for_user(lang)
     return "", confirmation_question_for_user(lang)
 
@@ -187,7 +177,7 @@ User clarification:
 
 Now provide:
 1. a clearer rewritten version
-2. the exact confirmation sentence in the same language
+2. a confirmation question in the same language
 """
     raw = _call_model(prompt)
 
@@ -213,11 +203,11 @@ def clarification_question_for_user(lang: str) -> str:
 
 
 def confirmation_question_for_user(lang: str) -> str:
-    """Fixed fallback confirmation question if the model returns only one line."""
+    """Fallback confirmation question if the model returns only one line."""
     questions = {
         "en": "Is this what you mean?",
         "de": "Ist das, was du meinst?",
-        "fr": "Est-ce que c’est ce que tu veux dire?",
+        "fr": "Est-ce que c’est ce que tu veux dire ?",
     }
     return questions.get(lang, questions["en"])
 
