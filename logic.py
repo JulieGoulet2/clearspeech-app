@@ -1,14 +1,13 @@
 """
 Backend for ClearSpeech: OpenAI calls and parsing of model replies.
 
-Expects OPENAI_API_KEY in the environment (e.g. a project `.env` file; see README).
-The model is instructed (SYSTEM_PROMPT) to answer in the user’s language and to
-return two lines for proposals: rewrite, then confirmation question.
+Expects OPENAI_API_KEY in the environment.
 """
 
 from __future__ import annotations
 
 import os
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
@@ -154,6 +153,7 @@ def _call_model(user_input: str) -> str:
 
 
 def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
+    """First suggestion + confirmation question."""
     raw = _call_model(
         f"""Language hint: {lang}
 
@@ -176,7 +176,8 @@ User input:
 def propose_rewrite_after_clarification(
     original_text: str, clarification: str, lang: str
 ) -> tuple[str, str]:
-    prompt = f"""Language: {lang}
+    """Second turn after the user answered the clarification prompt."""
+    prompt = f"""Language hint: {lang}
 
 Original message:
 {original_text}
@@ -185,9 +186,10 @@ User clarification:
 {clarification}
 
 Important:
-- Reply ONLY in this language: {lang}
-- Do NOT switch language
-- Use the exact confirmation sentence for this language
+- Detect the dominant language from the original message and clarification together.
+- Use the language hint only as fallback.
+- Reply in one language only.
+- Use the exact confirmation sentence for that language.
 
 Now provide:
 1. a clearer rewritten sentence
@@ -205,6 +207,7 @@ Now provide:
     if len(lines) == 1:
         return lines[0], confirmation_question_for_user(lang)
     return "", confirmation_question_for_user(lang)
+
 
 def propose_three_options(text: str, lang: str) -> list[str]:
     """
@@ -245,19 +248,7 @@ Rules:
 
     lines = [line.strip("-• 1234567890. \t") for line in raw.splitlines() if line.strip()]
     unique_lines: list[str] = []
-    for line in lines:
-        if line not in unique_lines:
-            unique_lines.append(line)
 
-    return unique_lines[:3]
-
-    raw = _call_model(prompt)
-
-    if raw.startswith("ERROR:"):
-        return [raw]
-
-    lines = [line.strip("-• 1234567890. \t") for line in raw.splitlines() if line.strip()]
-    unique_lines: list[str] = []
     for line in lines:
         if line not in unique_lines:
             unique_lines.append(line)
@@ -266,6 +257,7 @@ Rules:
 
 
 def clarification_question_for_user(lang: str) -> str:
+    """Shown in the UI when the user clicks No."""
     questions = {
         "en": "What do you mean exactly?",
         "de": "Was meinst du genau?",
@@ -275,6 +267,7 @@ def clarification_question_for_user(lang: str) -> str:
 
 
 def confirmation_question_for_user(lang: str) -> str:
+    """Fixed fallback confirmation sentence."""
     questions = {
         "en": "Is this what you mean?",
         "de": "Ist das, was du meinst?",
@@ -284,6 +277,7 @@ def confirmation_question_for_user(lang: str) -> str:
 
 
 def language_name(code: str) -> str:
+    """Display names for the language dropdown in the UI."""
     names = {
         "en": "English",
         "de": "Deutsch",
