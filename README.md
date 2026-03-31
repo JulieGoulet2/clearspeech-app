@@ -5,7 +5,18 @@ ClearSpeech is a simple AI communication assistant designed for people with **la
 It helps users turn short, unclear, or incomplete input into a **clear, correct sentence**, with minimal effort.
 
 ---
+## 💡 Why this project
 
+This project was built to explore how AI can support people with communication difficulties (including aphasia).
+
+It focuses on:
+- reducing cognitive load
+- clarifying ambiguous input
+- enabling simple interaction (Yes/No flow)
+
+The goal is to create an accessible AI assistant that helps users express themselves clearly in everyday situations.
+
+---
 ## 🚀 What it does
 
 - Accepts short or imperfect input (e.g. "doctor tomorrow", "i want become beer")
