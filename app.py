@@ -1,6 +1,6 @@
 import streamlit as st
 import streamlit.components.v1 as components
-import logic
+import clearspeech_logic as logic
 
 # --------- STATES ---------
 PHASE_COMPOSE = "compose"
