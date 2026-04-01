@@ -25,6 +25,7 @@ The goal is to create an accessible AI assistant that helps users express themse
 - If not correct → asks one clarification → proposes again
 - Can propose **multiple interpretations (3 options)** when meaning is unclear
 - Final result is easy to **copy and reuse**
+- Includes unit tests for reliability and accessibility use cases
 
 ---
 
@@ -85,6 +86,34 @@ Recent improvements:
 
 ## ⚙️ Setup
 
+## 🧪 Testing
+
+This project includes unit tests to ensure reliability and correctness of the AI behavior.
+
+### What is tested
+
+- Core logic functions (language handling, confirmation, clarification)
+- Model interaction (using mocked responses — no real API calls)
+- Multiple interpretation feature (3 options)
+- Language consistency (output matches input language)
+- App smoke test (basic startup without crash)
+
+### How tests work
+
+Tests use `pytest` and `monkeypatch` to simulate the AI model.
+
+This means:
+- Tests are fast
+- Tests are free (no API cost)
+- Tests are stable and reproducible
+
+### Run tests
+
+From the project root:
+
+```bash
+python -m pytest -q
+
 ### Requirements
 
 - Python 3.10+
@@ -99,3 +128,4 @@ cd clearspeech-app
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+
