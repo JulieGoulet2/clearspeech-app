@@ -246,7 +246,24 @@ Rules:
     if raw.startswith("ERROR:"):
         return [raw]
 
-    lines = [line.strip("-• 1234567890. \t") for line in raw.splitlines() if line.strip()]
+    # Keep final sentence punctuation such as periods.
+    # Only remove bullets or numbering at the START of each line.
+    lines = []
+    for raw_line in raw.splitlines():
+        if not raw_line.strip():
+            continue
+        line = raw_line.lstrip()
+
+        if line.startswith("-") or line.startswith("•"):
+            line = line[1:].lstrip()
+
+        idx = 0
+        while idx < len(line) and line[idx].isdigit():
+            idx += 1
+        if idx > 0 and idx < len(line) and line[idx] in ".)":
+            line = line[idx + 1 :].lstrip()
+
+        lines.append(line)
     unique_lines: list[str] = []
 
     for line in lines:
