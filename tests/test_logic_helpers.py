@@ -25,6 +25,36 @@ spec.loader.exec_module(logic)
 
 # -------------------- TESTS --------------------
 
+
+def test_dominant_language_english_not_mistaken_for_german():
+    """German cues must not use English homographs (die, bin) or tie-break to de."""
+    assert (
+        logic._dominant_language_code("I might die tomorrow and put it in the bin.", "de")
+        == "en"
+    )
+    assert (
+        logic._dominant_language_code("The doctor said tomorrow.", "de") == "en"
+    )
+    assert logic._dominant_language_code("Ich kann morgen nicht zum Arzt.", "en") == "de"
+
+
+def test_option_meanings_too_close_detects_paraphrase_and_same_scaffold():
+    """Paraphrases and same long opening must not count as 3 distinct meanings."""
+    a = (
+        "Ich habe noch nicht entschieden, wo dein Chor probt, weil ich nicht gut gelesen habe."
+    )
+    b = (
+        "Ich habe noch nicht entschieden, wo dein Chor probt, ich habe nicht gut gelesen."
+    )
+    c = "Ich habe noch nicht entschieden, wo deine Chorprobe ist."
+    assert logic._option_meanings_too_close(a, b)
+    assert logic._option_meanings_too_close(a, c)
+    assert not logic._option_meanings_too_close(
+        "Der Termin ist morgen um acht.",
+        "Sie wollten wissen, ob der Zug pünktlich ist.",
+    )
+
+
 def test_propose_rewrite_and_question_two_lines(monkeypatch):
     """
     If the model returns 2 lines, the function should split them into:
@@ -112,21 +142,35 @@ def test_propose_three_options_returns_three_distinct_lines(monkeypatch):
     The 3-option feature should return 3 different options.
     """
 
+    # Category call, then one response per option; retry may run if lines look too similar.
+    multiline = (
+        "I went there yesterday and had a problem.\n"
+        "I may go there tomorrow and expect a problem.\n"
+        "There was a problem there yesterday."
+    )
+    responses = iter(
+        [
+            '["location", "time", "understanding"]',
+            "Alpha: only the first line matters for this test.",
+            "Bravo: distinct tokens reduce overlap with other options.",
+            "Charlie: third option must not dedupe against the first two.",
+        ]
+    )
+
     def fake_call_model(_prompt: str) -> str:
-        return (
-            "I went there yesterday and had a problem.\n"
-            "I may go there tomorrow and expect a problem.\n"
-            "There was a problem there yesterday."
-        )
+        try:
+            return next(responses)
+        except StopIteration:
+            return multiline
 
     monkeypatch.setattr(logic, "_call_model", fake_call_model)
 
     options = logic.propose_three_options("I go there yesterday maybe problem", "en")
 
     assert len(options) == 3
-    assert options[0] == "I went there yesterday and had a problem."
-    assert options[1] == "I may go there tomorrow and expect a problem."
-    assert options[2] == "There was a problem there yesterday."
+    assert options[0] == "Alpha: only the first line matters for this test."
+    assert options[1] == "Bravo: distinct tokens reduce overlap with other options."
+    assert options[2] == "Charlie: third option must not dedupe against the first two."
 
 
 def test_propose_three_options_deduplicates(monkeypatch):
@@ -134,13 +178,20 @@ def test_propose_three_options_deduplicates(monkeypatch):
     If the model repeats the same line, the function should remove duplicates.
     """
 
+    multiline = (
+        "Je peux venir demain.\n"
+        "Je peux venir demain.\n"
+        "Je viendrai peut-être demain.\n"
+        "Il est possible que je vienne demain."
+    )
+    call_idx = [0]
+
     def fake_call_model(_prompt: str) -> str:
-        return (
-            "Je peux venir demain.\n"
-            "Je peux venir demain.\n"
-            "Je viendrai peut-être demain.\n"
-            "Il est possible que je vienne demain."
-        )
+        i = call_idx[0]
+        call_idx[0] += 1
+        if i == 0:
+            return '["location", "time", "understanding"]'
+        return multiline
 
     monkeypatch.setattr(logic, "_call_model", fake_call_model)
 
@@ -148,6 +199,37 @@ def test_propose_three_options_deduplicates(monkeypatch):
 
     assert "Je peux venir demain." in options
     assert len(options) <= 3
+
+
+def test_propose_three_options_german_input_english_ui_uses_german(monkeypatch):
+    """Reply language must follow the message, not the Streamlit UI language."""
+    prompts: list[str] = []
+    responses = iter(
+        [
+            '["location", "time", "decision"]',
+            "Erster deutscher Satz.",
+            "Zweiter deutscher Satz.",
+            "Dritter deutscher Satz.",
+        ]
+    )
+
+    def fake_call_model(prompt: str) -> str:
+        prompts.append(prompt)
+        try:
+            return next(responses)
+        except StopIteration:
+            return "Ersatz."
+
+    monkeypatch.setattr(logic, "_call_model", fake_call_model)
+
+    logic.propose_three_options(
+        "Ich kann morgen leider nicht zum Arzt.",
+        "en",
+    )
+
+    option_prompts = [p for p in prompts if "User input:" in p and "JSON" not in p][:3]
+    for p in option_prompts:
+        assert "German" in p
 
 
 def test_propose_three_options_error(monkeypatch):

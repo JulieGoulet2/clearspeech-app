@@ -3,8 +3,10 @@ Backend for ClearSpeech: OpenAI calls and parsing of model replies.
 
 Expects OPENAI_API_KEY in the environment.
 """
-
 from __future__ import annotations
+import json
+import re
+
 
 import os
 from difflib import SequenceMatcher
@@ -153,6 +155,144 @@ def _call_model(user_input: str) -> str:
         return f"ERROR: {str(e)}"
 
 
+def _dominant_language_code(text: str, fallback: str) -> str:
+    """
+    Rough en/de/fr detection from user text so replies follow the *message*
+    language, not the UI language.
+    """
+    if fallback not in ("en", "de", "fr"):
+        fallback = "en"
+    if not text.strip():
+        return fallback
+
+    t = f" {text.lower()} "
+    # Do NOT use German "die" / "bin" as cues: they match English "die" / "bin" (noun).
+    de = len(re.findall(r"[äöüß]", text))
+    de += sum(
+        1
+        for w in (
+            "ich",
+            "nicht",
+            "der",
+            "und",
+            "morgen",
+            "kann",
+            "kommen",
+            "vielleicht",
+            "arzt",
+            "habe",
+            "heute",
+            "auch",
+            "schon",
+            "noch",
+            "gibt",
+            "meinst",
+            "warum",
+            "sie",
+            "mir",
+            "dir",
+            "euch",
+            "dass",
+            "können",
+            "müssen",
+        )
+        if re.search(rf"\b{re.escape(w)}\b", t)
+    )
+
+    fr = len(re.findall(r"[éèêëàâùûîïôçœæ]", text, re.IGNORECASE))
+    fr += sum(
+        1
+        for w in (
+            "je",
+            "pas",
+            "demain",
+            "vous",
+            "avec",
+            "pour",
+            "dans",
+            "suis",
+            "peux",
+            "être",
+            "comment",
+            "pourquoi",
+            "chez",
+            "rendez-vous",
+            "peut-être",
+        )
+        if re.search(rf"\b{re.escape(w)}\b", t)
+    )
+
+    en = sum(
+        1
+        for w in (
+            "the",
+            "a",
+            "i",
+            "you",
+            "we",
+            "they",
+            "is",
+            "am",
+            "are",
+            "were",
+            "can't",
+            "cannot",
+            "don't",
+            "not",
+            "tomorrow",
+            "yesterday",
+            "want",
+            "what",
+            "when",
+            "where",
+            "why",
+            "how",
+            "going",
+            "have",
+            "has",
+            "does",
+            "did",
+            "will",
+            "would",
+            "could",
+            "should",
+            "doctor",
+            "problem",
+            "this",
+            "that",
+            "with",
+            "from",
+            "here",
+            "there",
+            "please",
+            "thanks",
+            "hello",
+            "know",
+            "like",
+            "just",
+            "very",
+            "because",
+            "about",
+        )
+        if re.search(rf"\b{re.escape(w)}\b", t)
+    )
+
+    scores = {"en": en, "de": de, "fr": fr}
+    max_score = max(scores.values())
+    if max_score == 0:
+        return fallback
+
+    tied = [code for code, s in scores.items() if s == max_score]
+    if len(tied) == 1:
+        return tied[0]
+    # Ties: prefer English for ambiguous Latin text, then UI language if in the tie.
+    if "en" in tied:
+        return "en"
+    if fallback in tied:
+        return fallback
+    return tied[0]
+
+
 def _parse_option_lines(raw: str) -> list[str]:
     """Split model output into lines; strip leading bullets/numbers only (keep sentence punctuation)."""
     lines: list[str] = []
@@ -180,6 +320,29 @@ def _too_similar(a: str, b: str) -> bool:
     if len(a_norm) < 6 or len(b_norm) < 6:
         return False
     return SequenceMatcher(None, a_norm, b_norm).ratio() > 0.92
+
+
+def _option_meanings_too_close(a: str, b: str) -> bool:
+    """
+    Stricter than _too_similar: catches paraphrases that keep the same meaning
+    (same sentence scaffold, small edits). Used only for the 3-option list.
+    """
+    a_norm = a.strip().lower()
+    b_norm = b.strip().lower()
+    if a_norm == b_norm:
+        return True
+    if len(a_norm) < 8 or len(b_norm) < 8:
+        return False
+    full = SequenceMatcher(None, a_norm, b_norm).ratio()
+    if full > 0.74:
+        return True
+    # Same long opening = same reading, even if the ending differs slightly.
+    n = min(len(a_norm), len(b_norm), 100)
+    if n >= 40:
+        pre = SequenceMatcher(None, a_norm[:n], b_norm[:n]).ratio()
+        if pre > 0.88:
+            return True
+    return False
 
 
 def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
@@ -240,85 +403,181 @@ Now provide:
 
 
 def propose_three_options(text: str, lang: str) -> list[str]:
-    """
-    Return 3 DISTINCT possible interpretations.
-    The output language should follow the dominant language of the user input.
-    The UI language is only a fallback hint.
-    """
-    prompt = f"""Language hint: {lang}
+    reply_lang = _dominant_language_code(text, lang)
+    target_language = {"en": "English", "de": "German", "fr": "French"}[reply_lang]
+
+    category_prompt = f"""The user interface language code is {lang} (fallback only).
+The user MESSAGE is written mainly in {target_language} (code {reply_lang}).
 
 User input:
 {text}
 
 Language rules:
-- Detect the language from the FULL user input, not only the first word.
-- If the input is mainly in English, reply in English.
-- If the input is mainly in French, reply in French.
-- If the input is mainly in German, reply in German.
-- If the input is mixed, choose the dominant language of the input.
-- Use the language hint only as a fallback if the input language is unclear.
-- Do NOT switch language.
+- Use ONLY the message language ({target_language}), not the UI language, for any user-facing sentence.
+- JSON category strings may be short English nouns (location, time, …) or the same language as the message.
 
 Task:
-Produce exactly 3 DISTINCT possible interpretations of the user's intended meaning.
+Identify 3 DIFFERENT plausible ambiguity categories in this message.
+Each category must support a genuinely different interpretation of the user’s words (not the same guess rephrased).
 
-Important:
-The 3 options must differ by UNCERTAINTY TYPE, not only by wording.
-
-Try to cover different categories when plausible:
-- one option about PLACE or LOCATION
-- one option about UNDERSTANDING / READING / HEARING
-- one option about DECISION / INTENTION / STATUS / ACTION
-- one option about TIME / DATE / SCHEDULE
-- one option about OTHER CONTEXT / BACKGROUND / ENVIRONMENT
+Possible categories include:
+- location
+- understanding
+- decision
+- time
+- person
+- action
+- reason
+- other
 
 Rules:
-- Donot produce three paraphrases of the same idea.
-- Each option must be a short, clear sentence.
-- Options must represent different meanings, not small paraphrases.
-- Do not add numbering words like "Option 1".
-- Do not add explanations.
-- Output exactly 3 lines, one option per line.
-- If fewer than 3 interpretations are plausible, still provide the best 3 distinct reasonable possibilities.
+- Choose categories that reflect genuinely different possible meanings.
+- Do not repeat the same category.
+- Output ONLY a JSON array of 3 short strings.
+- Example:
+["location", "understanding", "decision"]
 """
 
-    raw = _call_model(prompt)
+    raw_categories = _call_model(category_prompt)
+    if raw_categories.startswith("ERROR:"):
+        return [raw_categories]
 
-    if raw.startswith("ERROR:"):
-        return [raw]
+    try:
+        categories = json.loads(raw_categories)
+        if not isinstance(categories, list):
+            raise ValueError("Not a list")
+        categories = [str(c).strip().lower() for c in categories if str(c).strip()]
+    except Exception:
+        categories = []
 
-    lines = _parse_option_lines(raw)
-    unique_lines: list[str] = []
-    for line in lines:
-        if any(_too_similar(line, existing) for existing in unique_lines):
-            continue
-        unique_lines.append(line)
+    if len(categories) < 3:
+        categories = ["location", "understanding", "decision"]
 
-    if len(unique_lines) < 3:
-        retry_prompt = f"""Language hint: {lang}
+    # keep unique categories only
+    deduped_categories = []
+    for cat in categories:
+        if cat not in deduped_categories:
+            deduped_categories.append(cat)
+    categories = deduped_categories[:3]
+
+    def _clean_line(line: str) -> str:
+        line = line.strip()
+        line = re.sub(r"^[-•]\s*", "", line)
+        line = re.sub(r"^\d+[.)]\s*", "", line)
+        return line.strip()
+
+    options: list[str] = []
+
+    for cat in categories:
+        option_prompt = f"""The user wrote in {target_language}. Every line you output MUST be in {target_language} only.
+Never use English for German input, never German for French input, etc.
+(UI language is irrelevant for the answer language.)
 
 User input:
 {text}
 
-The previous answers were too similar.
+You focus on ONE ambiguity type: {cat}.
+Write ONE sentence that states a plausible meaning of the user’s message mainly under this type.
 
-Give 3 clearly DIFFERENT meanings.
-They must not be paraphrases.
+CRITICAL — meaning must be DISTINCT from other types:
+- Do NOT paraphrase the same idea with small word changes (same situation, same conclusion).
+- Do NOT reuse the same sentence opening or scaffold as you would for another ambiguity; vary the structure.
+- If two sentences would still be true for the same real-world situation, they are NOT distinct enough — choose a different hypothesis.
+- Example of BAD: three sentences that all say “you have not decided where the choir rehearses” with only connector or word-order changes.
+- Example of GOOD: one sentence about WHERE, one about WHETHER you understood a message, one about WHICH event was meant — three different questions answered.
 
-3 short sentences only.
+Rules:
+- Exactly ONE short sentence in {target_language}.
+- No other language. No explanation. No numbering.
 """
-        retry_raw = _call_model(retry_prompt)
 
+        raw_option = _call_model(option_prompt)
+        if raw_option.startswith("ERROR:"):
+            continue
+
+        first_nonempty = ""
+        for raw_line in raw_option.splitlines():
+            cleaned = _clean_line(raw_line)
+            if cleaned:
+                first_nonempty = cleaned
+                break
+
+        if not first_nonempty:
+            continue
+
+        if any(_option_meanings_too_close(first_nonempty, existing) for existing in options):
+            continue
+
+        options.append(first_nonempty)
+
+    if len(options) < 3:
+        retry_prompt = f"""The user wrote in {target_language}. All sentences MUST be in {target_language} only.
+
+User input:
+{text}
+
+The previous answers were too similar in wording or in meaning.
+
+Produce exactly 3 short sentences that describe THREE DIFFERENT possible intentions or situations.
+They must not be paraphrases of each other. Different uncertainty dimensions, for example:
+- where / when / who / what event / whether something was understood / what was decided
+
+Rules:
+- Same core situation restated three ways is FORBIDDEN.
+- Each line must answer a different “what might the user mean?” question.
+- Output exactly 3 lines in {target_language}.
+- No numbering. No explanations.
+"""
+
+        retry_raw = _call_model(retry_prompt)
         if not retry_raw.startswith("ERROR:"):
-            retry_lines = _parse_option_lines(retry_raw)
+            retry_lines = []
+            for raw_line in retry_raw.splitlines():
+                cleaned = _clean_line(raw_line)
+                if cleaned:
+                    retry_lines.append(cleaned)
+
             for line in retry_lines:
-                if any(_too_similar(line, existing) for existing in unique_lines):
+                if any(_option_meanings_too_close(line, existing) for existing in options):
                     continue
-                unique_lines.append(line)
-                if len(unique_lines) == 3:
+                options.append(line)
+                if len(options) == 3:
                     break
 
-    return unique_lines[:3]
+    # Token-overlap was too aggressive for German/French (shared function words).
+    # Still ensure exactly 3 choices: ask for one more distinct line at a time.
+    for _ in range(6):
+        if len(options) >= 3:
+            break
+        already = "\n".join(f"- {o}" for o in options) if options else "(none yet)"
+        fill_prompt = f"""The user wrote in {target_language}.
+
+User input:
+{text}
+
+These interpretations are already proposed:
+{already}
+
+Write exactly ONE more short sentence in {target_language} only.
+It must express a different possible meaning than any line above — not a paraphrase and not the same sentence with small edits.
+Do not copy the opening words of the lines above; use a different angle (e.g. time vs place vs misunderstanding).
+One line. No numbering. No explanation."""
+        raw_fill = _call_model(fill_prompt)
+        if raw_fill.startswith("ERROR:"):
+            break
+        first_fill = ""
+        for raw_line in raw_fill.splitlines():
+            cleaned = _clean_line(raw_line)
+            if cleaned:
+                first_fill = cleaned
+                break
+        if not first_fill:
+            continue
+        if any(_option_meanings_too_close(first_fill, existing) for existing in options):
+            continue
+        options.append(first_fill)
+
+    return options[:3]
 
 
 def clarification_question_for_user(lang: str) -> str:
