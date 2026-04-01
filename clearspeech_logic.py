@@ -7,6 +7,7 @@ Expects OPENAI_API_KEY in the environment.
 from __future__ import annotations
 
 import os
+from difflib import SequenceMatcher
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -152,6 +153,35 @@ def _call_model(user_input: str) -> str:
         return f"ERROR: {str(e)}"
 
 
+def _parse_option_lines(raw: str) -> list[str]:
+    """Split model output into lines; strip leading bullets/numbers only (keep sentence punctuation)."""
+    lines: list[str] = []
+    for raw_line in raw.splitlines():
+        if not raw_line.strip():
+            continue
+        line = raw_line.lstrip()
+        if line.startswith("-") or line.startswith("•"):
+            line = line[1:].lstrip()
+        idx = 0
+        while idx < len(line) and line[idx].isdigit():
+            idx += 1
+        if idx > 0 and idx < len(line) and line[idx] in ".)":
+            line = line[idx + 1 :].lstrip()
+        lines.append(line)
+    return lines
+
+
+def _too_similar(a: str, b: str) -> bool:
+    """True if two option lines are duplicates or near-paraphrases."""
+    a_norm = a.strip().lower()
+    b_norm = b.strip().lower()
+    if a_norm == b_norm:
+        return True
+    if len(a_norm) < 6 or len(b_norm) < 6:
+        return False
+    return SequenceMatcher(None, a_norm, b_norm).ratio() > 0.92
+
+
 def propose_rewrite_and_question(text: str, lang: str) -> tuple[str, str]:
     """First suggestion + confirmation question."""
     raw = _call_model(
@@ -232,7 +262,18 @@ Language rules:
 Task:
 Produce exactly 3 DISTINCT possible interpretations of the user's intended meaning.
 
+Important:
+The 3 options must differ by UNCERTAINTY TYPE, not only by wording.
+
+Try to cover different categories when plausible:
+- one option about PLACE or LOCATION
+- one option about UNDERSTANDING / READING / HEARING
+- one option about DECISION / INTENTION / STATUS / ACTION
+- one option about TIME / DATE / SCHEDULE
+- one option about OTHER CONTEXT / BACKGROUND / ENVIRONMENT
+
 Rules:
+- Donot produce three paraphrases of the same idea.
 - Each option must be a short, clear sentence.
 - Options must represent different meanings, not small paraphrases.
 - Do not add numbering words like "Option 1".
@@ -246,29 +287,36 @@ Rules:
     if raw.startswith("ERROR:"):
         return [raw]
 
-    # Keep final sentence punctuation such as periods.
-    # Only remove bullets or numbering at the START of each line.
-    lines = []
-    for raw_line in raw.splitlines():
-        if not raw_line.strip():
-            continue
-        line = raw_line.lstrip()
-
-        if line.startswith("-") or line.startswith("•"):
-            line = line[1:].lstrip()
-
-        idx = 0
-        while idx < len(line) and line[idx].isdigit():
-            idx += 1
-        if idx > 0 and idx < len(line) and line[idx] in ".)":
-            line = line[idx + 1 :].lstrip()
-
-        lines.append(line)
+    lines = _parse_option_lines(raw)
     unique_lines: list[str] = []
-
     for line in lines:
-        if line not in unique_lines:
-            unique_lines.append(line)
+        if any(_too_similar(line, existing) for existing in unique_lines):
+            continue
+        unique_lines.append(line)
+
+    if len(unique_lines) < 3:
+        retry_prompt = f"""Language hint: {lang}
+
+User input:
+{text}
+
+The previous answers were too similar.
+
+Give 3 clearly DIFFERENT meanings.
+They must not be paraphrases.
+
+3 short sentences only.
+"""
+        retry_raw = _call_model(retry_prompt)
+
+        if not retry_raw.startswith("ERROR:"):
+            retry_lines = _parse_option_lines(retry_raw)
+            for line in retry_lines:
+                if any(_too_similar(line, existing) for existing in unique_lines):
+                    continue
+                unique_lines.append(line)
+                if len(unique_lines) == 3:
+                    break
 
     return unique_lines[:3]
 
