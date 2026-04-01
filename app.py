@@ -34,18 +34,27 @@ def reset():
     st.session_state.lang = current_lang
 
 
-def copy_button(text):
+def copy_button(text: str):
     safe_text = (
         text.replace("\\", "\\\\")
         .replace("`", "\\`")
         .replace("$", "\\$")
         .replace("</", "<\\/")
     )
+
     components.html(
         f"""
         <button onclick="navigator.clipboard.writeText(`{safe_text}`)"
-        style="background-color:#2e7d32;color:white;padding:10px 16px;border:none;border-radius:8px;font-size:16px;">
-        📋 Copy text
+        style="
+            background-color:#2e7d32;
+            color:white;
+            padding:10px 16px;
+            border:none;
+            border-radius:8px;
+            font-size:16px;
+            cursor:pointer;
+        ">
+            📋 Copy text
         </button>
         """,
         height=60,
@@ -57,7 +66,7 @@ def ui_text(lang):
         "en": {
             "title": "ClearSpeech",
             "caption": "AI communication assistant",
-            "language": "Language",
+            "language_selector": "Language / Langue / Sprache",
             "intro1": "Write a short message, even if it is incomplete.",
             "intro2": "I will suggest a clearer version and ask if this is what you mean.",
             "example_input_label": "Example input",
@@ -65,6 +74,7 @@ def ui_text(lang):
             "example_sentence_label": "Suggested sentence",
             "example_sentence": "I cannot come tomorrow because I have a doctor appointment.",
             "example_question": "Is this what you mean?",
+            "instructions_title": "ℹ️ How this app works",
             "your_message": "Your message",
             "placeholder": "Write your message here...",
             "get_clearer": "Get clearer version",
@@ -87,7 +97,7 @@ def ui_text(lang):
         "fr": {
             "title": "ClearSpeech",
             "caption": "Assistant IA de communication",
-            "language": "Langue",
+            "language_selector": "Language / Langue / Sprache",
             "intro1": "Écris un message court, même s’il est incomplet.",
             "intro2": "Je vais proposer une version plus claire et te demander si c’est bien ce que tu veux dire.",
             "example_input_label": "Exemple d’entrée",
@@ -95,6 +105,7 @@ def ui_text(lang):
             "example_sentence_label": "Phrase proposée",
             "example_sentence": "Je ne peux pas venir demain parce que j’ai un rendez-vous chez le médecin.",
             "example_question": "Est-ce que c’est ce que tu veux dire ?",
+            "instructions_title": "ℹ️ Comment fonctionne l'application",
             "your_message": "Ton message",
             "placeholder": "Écris ton message ici...",
             "get_clearer": "Obtenir une version plus claire",
@@ -117,7 +128,7 @@ def ui_text(lang):
         "de": {
             "title": "ClearSpeech",
             "caption": "KI-Kommunikationsassistent",
-            "language": "Sprache",
+            "language_selector": "Language / Langue / Sprache",
             "intro1": "Schreibe eine kurze Nachricht, auch wenn sie unvollständig ist.",
             "intro2": "Ich schlage eine klarere Version vor und frage dich, ob das ist, was du meinst.",
             "example_input_label": "Beispieleingabe",
@@ -125,6 +136,7 @@ def ui_text(lang):
             "example_sentence_label": "Vorgeschlagener Satz",
             "example_sentence": "Ich kann morgen vielleicht nicht kommen, weil ich einen Arzttermin habe.",
             "example_question": "Ist das, was du meinst?",
+            "instructions_title": "ℹ️ Wie die App funktioniert",
             "your_message": "Deine Nachricht",
             "placeholder": "Schreibe hier deine Nachricht...",
             "get_clearer": "Klarere Version erzeugen",
@@ -148,6 +160,158 @@ def ui_text(lang):
     return strings[lang]
 
 
+def render_instructions(lang):
+    if lang == "fr":
+        with st.expander("ℹ️ Comment fonctionne l'application"):
+            st.markdown("""
+### Ce que fait cette application
+
+Cette application vous aide à transformer un message court ou incomplet en une phrase claire.
+
+Vous pouvez écrire avec des erreurs ou seulement quelques mots.
+
+---
+
+### Comment l'utiliser
+
+#### Étape 1 — Écrire un message
+Écrivez un message court.
+
+#### Étape 2 — Première proposition
+L'application propose une phrase et demande si c'est correct.
+
+- ✅ Oui → texte final
+- ❌ Non → clarification
+- 🔀 Autres options → voir 3 interprétations possibles
+- Recommencer → repartir du début
+
+#### Étape 3 — Plusieurs options
+Si le sens n'est pas clair, 3 options sont proposées.
+
+Vous pouvez :
+- choisir l’option correcte
+- ou cliquer sur **Clarifier ce que je veux dire** si aucune n’est bonne
+
+#### Étape 4 — Clarification
+Vous pouvez expliquer un peu plus votre intention.
+
+#### Étape 5 — Texte final
+Vous obtenez une phrase claire à copier.
+
+---
+
+### Remarques
+
+- Les phrases incomplètes sont acceptées
+- Vous n’avez pas besoin d’écrire parfaitement
+- L’application essaie de comprendre votre intention
+
+---
+
+Contact : **drjuliegoulet@gmail.com**
+""")
+
+    elif lang == "de":
+        with st.expander("ℹ️ Wie die App funktioniert"):
+            st.markdown("""
+### Was diese App macht
+
+Diese App hilft dir, eine kurze oder unklare Nachricht in einen klaren Satz umzuwandeln.
+
+Du kannst Fehler machen oder nur wenige Wörter schreiben.
+
+---
+
+### Nutzung
+
+#### Schritt 1 — Nachricht schreiben
+Schreibe eine kurze Nachricht.
+
+#### Schritt 2 — Erster Vorschlag
+Die App macht einen Vorschlag und fragt, ob das richtig ist.
+
+- ✅ Ja → finaler Text
+- ❌ Nein → klären
+- 🔀 Andere Optionen → 3 mögliche Bedeutungen sehen
+- Neu anfangen → von vorne beginnen
+
+#### Schritt 3 — Mehrere Optionen
+Wenn die Bedeutung unklar ist, werden 3 Möglichkeiten angezeigt.
+
+Du kannst:
+- die richtige Option auswählen
+- oder auf **Meine Bedeutung klarstellen** klicken, wenn keine passt
+
+#### Schritt 4 — Klärung
+Du kannst deine Bedeutung genauer erklären.
+
+#### Schritt 5 — Finaler Text
+Du bekommst einen klaren Satz zum Kopieren.
+
+---
+
+### Hinweise
+
+- Unvollständige Sätze sind in Ordnung
+- Du musst nicht perfekt schreiben
+- Die App versucht, deine Bedeutung zu verstehen
+
+---
+
+Kontakt: **drjuliegoulet@gmail.com**
+""")
+
+    else:
+        with st.expander("ℹ️ How this app works"):
+            st.markdown("""
+### What this app does
+
+This app helps you turn a short or incomplete message into a clear sentence.
+
+You can write with mistakes or with only a few words.
+
+---
+
+### How to use it
+
+#### Step 1 — Write your message
+Write a short message.
+
+#### Step 2 — First suggestion
+The app suggests a sentence and asks if it is correct.
+
+- ✅ Yes → final text
+- ❌ No → clarification
+- 🔀 Other options → see 3 possible meanings
+- Start over → begin again
+
+#### Step 3 — Multiple options
+If the meaning is unclear, the app can show 3 different possible interpretations.
+
+You can:
+- choose the correct option
+- or click **Clarify my meaning** if none of them is right
+
+#### Step 4 — Clarification
+You can explain your meaning a little more.
+
+#### Step 5 — Final text
+You get a clear sentence that you can copy.
+
+---
+
+### Notes
+
+- Incomplete input is OK
+- You do not need to write perfectly
+- The app tries to understand your meaning
+
+---
+
+Contact: **drjuliegoulet@gmail.com**
+""")
+
+
 def main():
     st.set_page_config(page_title="ClearSpeech", page_icon="💬")
     init_session()
@@ -158,11 +322,14 @@ def main():
         format_func=lambda x: logic.language_name(x),
         key="lang",
     )
+    render_instructions(lang)
     t = ui_text(lang)
 
     st.title(t["title"])
     st.caption(t["caption"])
-    st.caption("Version 2.5")
+    st.caption("Version 2.6")
+
+    # render_instructions(lang)
 
     # ---------- FIRST PAGE EXPLANATION + EXAMPLE ----------
     st.markdown(f"**{t['intro1']}**")
@@ -244,6 +411,7 @@ def main():
         for i, option in enumerate(st.session_state.options):
             st.markdown(f"### Option {i+1}")
             st.write(option)
+
             if st.button(f"{t['use_option']} {i+1}", key=f"opt_{i}"):
                 st.session_state.proposed = option
                 st.session_state.phase = PHASE_FINAL
