@@ -179,6 +179,7 @@ Vous obtenez une phrase claire à copier.
 - Les phrases incomplètes sont acceptées
 - Vous n’avez pas besoin d’écrire parfaitement
 - L’application essaie de comprendre votre intention
+- Les réponses sont générées avec le modèle **GPT-4.1 mini** d’OpenAI
 
 ---
 
@@ -221,6 +222,7 @@ Du bekommst einen klaren Satz zum Kopieren.
 - Unvollständige Sätze sind in Ordnung
 - Du musst nicht perfekt schreiben
 - Die App versucht, deine Bedeutung zu verstehen
+- Die Antworten werden mit dem Modell **GPT-4.1 mini** von OpenAI erzeugt
 
 ---
 
@@ -263,6 +265,7 @@ You get a clear sentence that you can copy.
 - Incomplete input is OK
 - You do not need to write perfectly
 - The app tries to understand your meaning
+- Suggestions are generated using OpenAI’s **GPT-4.1 mini** model
 
 ---
 
@@ -285,7 +288,7 @@ def main():
 
     st.title(t["title"])
     st.caption(t["caption"])
-    st.caption("Version 2.6")
+    st.caption("Version 2.7")
 
     # render_instructions(lang)
 
