@@ -23,7 +23,6 @@ The goal is to create an accessible AI assistant that helps users express themse
 - Suggests a **clear rewritten sentence**
 - Asks a simple confirmation: *"Is this what you mean?"*
 - If not correct → asks one clarification → proposes again
-- Can propose **multiple interpretations (3 options)** when meaning is unclear
 - Final result is easy to **copy and reuse**
 - Includes unit tests for reliability and accessibility use cases
 
@@ -62,7 +61,6 @@ The system:
 Recent improvements:
 - better language detection
 - fixed confirmation sentence consistency
-- support for **3 alternative interpretations**
 - improved handling of ambiguity and idioms
 - copy-to-clipboard for final text
 
@@ -94,8 +92,6 @@ This project includes unit tests to ensure reliability and correctness of the AI
 
 - Core logic functions (language handling, confirmation, clarification)
 - Model interaction (using mocked responses — no real API calls)
-- Multiple interpretation feature (3 options)
-- Language consistency (output matches input language)
 - App smoke test (basic startup without crash)
 
 ### How tests work
@@ -113,6 +109,7 @@ From the project root:
 
 ```bash
 python -m pytest -q
+```
 
 ### Requirements
 

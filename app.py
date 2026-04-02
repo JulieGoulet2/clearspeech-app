@@ -5,7 +5,6 @@ import clearspeech_logic as logic
 # --------- STATES ---------
 PHASE_COMPOSE = "compose"
 PHASE_CONFIRM = "confirm"
-PHASE_OPTIONS = "options"
 PHASE_CLARIFY = "clarify"
 PHASE_FINAL = "final"
 
@@ -21,8 +20,6 @@ def init_session():
         st.session_state.proposed = ""
     if "question" not in st.session_state:
         st.session_state.question = ""
-    if "options" not in st.session_state:
-        st.session_state.options = []
     if "clarification" not in st.session_state:
         st.session_state.clarification = ""
 
@@ -82,12 +79,7 @@ def ui_text(lang):
             "suggested_sentence": "Suggested sentence",
             "yes": "Yes",
             "no": "No",
-            "other_options": "Other options",
             "start_over": "Start over",
-            "other_meanings": "Other possible meanings",
-            "use_option": "Use option",
-            "none_correct": "None of these are correct",
-            "clarify_meaning": "Clarify my meaning",
             "clarify_title": "What do you mean exactly?",
             "your_answer": "Your answer",
             "update": "Update",
@@ -113,12 +105,7 @@ def ui_text(lang):
             "suggested_sentence": "Phrase proposée",
             "yes": "Oui",
             "no": "Non",
-            "other_options": "Autres options",
             "start_over": "Recommencer",
-            "other_meanings": "Autres significations possibles",
-            "use_option": "Utiliser l’option",
-            "none_correct": "Aucune de ces options n’est correcte",
-            "clarify_meaning": "Clarifier ce que je veux dire",
             "clarify_title": "Qu’est-ce que tu veux dire exactement ?",
             "your_answer": "Ta réponse",
             "update": "Mettre à jour",
@@ -144,12 +131,7 @@ def ui_text(lang):
             "suggested_sentence": "Vorgeschlagener Satz",
             "yes": "Ja",
             "no": "Nein",
-            "other_options": "Andere Optionen",
             "start_over": "Neu anfangen",
-            "other_meanings": "Andere mögliche Bedeutungen",
-            "use_option": "Option verwenden",
-            "none_correct": "Keine davon ist richtig",
-            "clarify_meaning": "Meine Bedeutung klarstellen",
             "clarify_title": "Was meinst du genau?",
             "your_answer": "Deine Antwort",
             "update": "Aktualisieren",
@@ -182,20 +164,12 @@ L'application propose une phrase et demande si c'est correct.
 
 - ✅ Oui → texte final
 - ❌ Non → clarification
-- 🔀 Autres options → voir 3 interprétations possibles
 - Recommencer → repartir du début
 
-#### Étape 3 — Plusieurs options
-Si le sens n'est pas clair, 3 options sont proposées.
-
-Vous pouvez :
-- choisir l’option correcte
-- ou cliquer sur **Clarifier ce que je veux dire** si aucune n’est bonne
-
-#### Étape 4 — Clarification
+#### Étape 3 — Clarification
 Vous pouvez expliquer un peu plus votre intention.
 
-#### Étape 5 — Texte final
+#### Étape 4 — Texte final
 Vous obtenez une phrase claire à copier.
 
 ---
@@ -232,20 +206,12 @@ Die App macht einen Vorschlag und fragt, ob das richtig ist.
 
 - ✅ Ja → finaler Text
 - ❌ Nein → klären
-- 🔀 Andere Optionen → 3 mögliche Bedeutungen sehen
 - Neu anfangen → von vorne beginnen
 
-#### Schritt 3 — Mehrere Optionen
-Wenn die Bedeutung unklar ist, werden 3 Möglichkeiten angezeigt.
-
-Du kannst:
-- die richtige Option auswählen
-- oder auf **Meine Bedeutung klarstellen** klicken, wenn keine passt
-
-#### Schritt 4 — Klärung
+#### Schritt 3 — Klärung
 Du kannst deine Bedeutung genauer erklären.
 
-#### Schritt 5 — Finaler Text
+#### Schritt 4 — Finaler Text
 Du bekommst einen klaren Satz zum Kopieren.
 
 ---
@@ -282,20 +248,12 @@ The app suggests a sentence and asks if it is correct.
 
 - ✅ Yes → final text
 - ❌ No → clarification
-- 🔀 Other options → see 3 possible meanings
 - Start over → begin again
 
-#### Step 3 — Multiple options
-If the meaning is unclear, the app can show 3 different possible interpretations.
-
-You can:
-- choose the correct option
-- or click **Clarify my meaning** if none of them is right
-
-#### Step 4 — Clarification
+#### Step 3 — Clarification
 You can explain your meaning a little more.
 
-#### Step 5 — Final text
+#### Step 4 — Final text
 You get a clear sentence that you can copy.
 
 ---
@@ -379,7 +337,7 @@ def main():
         st.markdown("### ❓")
         st.write(st.session_state.question)
 
-        c1, c2, c3, c4 = st.columns(4)
+        c1, c2, c3 = st.columns(3)
 
         with c1:
             if st.button(f"✅ {t['yes']}", use_container_width=True):
@@ -392,37 +350,9 @@ def main():
                 st.rerun()
 
         with c3:
-            if st.button(f"🔀 {t['other_options']}", use_container_width=True):
-                st.session_state.options = logic.propose_three_options(
-                    st.session_state.original, lang
-                )
-                st.session_state.phase = PHASE_OPTIONS
-                st.rerun()
-
-        with c4:
             if st.button(t["start_over"], use_container_width=True):
                 reset()
                 st.rerun()
-
-    # ---------- OPTIONS ----------
-    elif st.session_state.phase == PHASE_OPTIONS:
-        st.subheader(t["other_meanings"])
-
-        for i, option in enumerate(st.session_state.options):
-            st.markdown(f"### Option {i+1}")
-            st.write(option)
-
-            if st.button(f"{t['use_option']} {i+1}", key=f"opt_{i}"):
-                st.session_state.proposed = option
-                st.session_state.phase = PHASE_FINAL
-                st.rerun()
-
-            st.markdown("---")
-
-        st.markdown(f"**{t['none_correct']}**")
-        if st.button(f"❓ {t['clarify_meaning']}"):
-            st.session_state.phase = PHASE_CLARIFY
-            st.rerun()
 
     # ---------- CLARIFY ----------
     elif st.session_state.phase == PHASE_CLARIFY:
