@@ -68,9 +68,8 @@ Recent improvements:
 
 ## 🔮 Roadmap
 
-- **3.0** → Text-to-speech (read output aloud)
-- **4.0** → Speech-to-text (voice input)
 - UI redesign (mobile + accessibility focus)
+- Possible future exploration: speech-to-text (only after the text workflow stays stable in real use)
 
 ---
 
@@ -83,6 +82,22 @@ Recent improvements:
 ---
 
 ## ⚙️ Setup
+
+### Requirements
+
+- Python 3.10+
+- OpenAI API key
+
+### Installation
+
+```bash
+git clone https://github.com/JulieGoulet2/clearspeech-app.git
+cd clearspeech-app
+
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+```
 
 ## 🧪 Testing
 
@@ -110,19 +125,3 @@ From the project root:
 ```bash
 python -m pytest -q
 ```
-
-### Requirements
-
-- Python 3.10+
-- OpenAI API key
-
-### Installation
-
-```bash
-git clone https://github.com/JulieGoulet2/clearspeech-app.git
-cd clearspeech-app
-
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-
