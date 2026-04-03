@@ -1,3 +1,4 @@
+import html
 import streamlit as st
 import streamlit.components.v1 as components
 import clearspeech_logic as logic
@@ -31,13 +32,14 @@ def reset():
     st.session_state.lang = current_lang
 
 
-def copy_button(text: str):
+def copy_button(text: str, label: str):
     safe_text = (
         text.replace("\\", "\\\\")
         .replace("`", "\\`")
         .replace("$", "\\$")
         .replace("</", "<\\/")
     )
+    safe_label = html.escape(label)
 
     components.html(
         f"""
@@ -51,7 +53,7 @@ def copy_button(text: str):
             font-size:16px;
             cursor:pointer;
         ">
-            📋 Copy text
+            {safe_label}
         </button>
         """,
         height=60,
@@ -85,6 +87,7 @@ def ui_text(lang):
             "update": "Update",
             "final_text": "Final text",
             "new_message": "New message",
+            "copy": "📋 Copy",
         },
         "fr": {
             "title": "ClearSpeech",
@@ -111,6 +114,7 @@ def ui_text(lang):
             "update": "Mettre à jour",
             "final_text": "Texte final",
             "new_message": "Nouveau message",
+            "copy": "📋 Copier",
         },
         "de": {
             "title": "ClearSpeech",
@@ -137,6 +141,7 @@ def ui_text(lang):
             "update": "Aktualisieren",
             "final_text": "Finaler Text",
             "new_message": "Neue Nachricht",
+            "copy": "📋 Kopieren",
         },
     }
     return strings[lang]
@@ -377,7 +382,7 @@ def main():
     elif st.session_state.phase == PHASE_FINAL:
         st.markdown(f"### {t['final_text']}")
         st.text_area("", value=st.session_state.proposed, height=120)
-        copy_button(st.session_state.proposed)
+        copy_button(st.session_state.proposed, t["copy"])
 
         if st.button(t["new_message"]):
             reset()
