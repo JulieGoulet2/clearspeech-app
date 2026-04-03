@@ -87,7 +87,7 @@ def ui_text(lang):
             "update": "Update",
             "final_text": "Final text",
             "new_message": "New message",
-            "copy": "📋 Copy",
+            "copy": "📋 Copy!",
         },
         "fr": {
             "title": "ClearSpeech",
@@ -114,7 +114,7 @@ def ui_text(lang):
             "update": "Mettre à jour",
             "final_text": "Texte final",
             "new_message": "Nouveau message",
-            "copy": "📋 Copier",
+            "copy": "📋 Copier!",
         },
         "de": {
             "title": "ClearSpeech",
@@ -141,7 +141,7 @@ def ui_text(lang):
             "update": "Aktualisieren",
             "final_text": "Finaler Text",
             "new_message": "Neue Nachricht",
-            "copy": "📋 Kopieren",
+            "copy": "📋 Kopieren!",
         },
     }
     return strings[lang]
