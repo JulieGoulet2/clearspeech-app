@@ -1,7 +1,6 @@
 # ClearSpeech
 
-🔗 Live Demo:
-https://clearspeech-app-udbwmkg8k65nd6nahbvjip.streamlit.app
+
 
 ClearSpeech is a simple AI communication assistant designed for people with **language or communication difficulties** (e.g. aphasia, non-native speakers, cognitive load).
 
